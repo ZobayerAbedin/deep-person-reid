@@ -379,11 +379,13 @@ class Engine(object):
         print('Extracting features from query set ...')
         qf, q_pids, q_camids = _feature_extraction(query_loader)
         print('Done, obtained {}-by-{} matrix'.format(qf.size(0), qf.size(1)))
-        print("here in 381" + q_pids)
+       
 
         print('Extracting features from gallery set ...')
         gf, g_pids, g_camids = _feature_extraction(gallery_loader)
         print('Done, obtained {}-by-{} matrix'.format(gf.size(0), gf.size(1)))
+
+         print("here in 381", q_pids, g_pids)
 
         print('Speed: {:.4f} sec/batch'.format(batch_time.avg))
 
