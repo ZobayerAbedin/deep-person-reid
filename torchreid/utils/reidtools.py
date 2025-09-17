@@ -3,6 +3,7 @@ import numpy as np
 import shutil
 import os.path as osp
 import cv2
+import csv
 
 from .tools import mkdir_if_missing
 
@@ -14,16 +15,15 @@ BW = 5 # border width
 GREEN = (0, 255, 0)
 RED = (0, 0, 255)
 
-
 def visualize_ranked_results(
     distmat, dataset, data_type, width=128, height=256, save_dir='', topk=10
 ):
-    """Visualizes ranked results.
+    """Visualizes ranked results and saves person IDs to a CSV file.
 
     Supports both image-reid and video-reid.
 
     For image-reid, ranks will be plotted in a single figure. For video-reid, ranks will be
-    saved in folders each containing a tracklet.
+    saved in folders each containing a tracklet. A CSV file is generated with query and gallery person IDs.
 
     Args:
         distmat (numpy.ndarray): distance matrix of shape (num_query, num_gallery).
@@ -32,7 +32,7 @@ def visualize_ranked_results(
         data_type (str): "image" or "video".
         width (int, optional): resized image width. Default is 128.
         height (int, optional): resized image height. Default is 256.
-        save_dir (str): directory to save output images.
+        save_dir (str): directory to save output images and CSV file.
         topk (int, optional): denoting top-k images in the rank list to be visualized.
             Default is 10.
     """
@@ -40,13 +40,18 @@ def visualize_ranked_results(
     mkdir_if_missing(save_dir)
 
     print('# query: {}\n# gallery {}'.format(num_q, num_g))
-    print('Visualizing top-{} ranks ...'.format(topk))
+    print('Visualizing top-{} ranks and saving to CSV ...'.format(topk))
 
     query, gallery = dataset
     assert num_q == len(query)
     assert num_g == len(gallery)
 
     indices = np.argsort(distmat, axis=1)
+
+    # Prepare CSV file
+    csv_path = osp.join(save_dir, 'ranked_results.csv')
+    csv_data = []
+    csv_headers = ['Query_PID', 'Query_Image'] + [f'Gallery_PID_{i+1}' for i in range(topk)] + [f'Match_{i+1}' for i in range(topk)]
 
     def _cp_img_to(src, dst, rank, prefix, matched=False):
         """
@@ -81,13 +86,15 @@ def visualize_ranked_results(
             qimg_path, (tuple, list)
         ) else qimg_path
 
+        # Initialize CSV row for this query
+        csv_row = [qpid, osp.basename(qimg_path_name)] + [''] * topk + [''] * topk
+
         if data_type == 'image':
             qimg = cv2.imread(qimg_path)
             qimg = cv2.resize(qimg, (width, height))
             qimg = cv2.copyMakeBorder(
                 qimg, BW, BW, BW, BW, cv2.BORDER_CONSTANT, value=(0, 0, 0)
             )
-            # resize twice to ensure that the border width is consistent across images
             qimg = cv2.resize(qimg, (width, height))
             num_cols = topk + 1
             grid_img = 255 * np.ones(
@@ -112,6 +119,11 @@ def visualize_ranked_results(
 
             if not invalid:
                 matched = gpid == qpid
+                # Add to CSV row
+                if rank_idx <= topk:
+                    csv_row[rank_idx + 1] = gpid
+                    csv_row[rank_idx + 1 + topk] = str(matched)
+                
                 if data_type == 'image':
                     border_color = GREEN if matched else RED
                     gimg = cv2.imread(gimg_path)
@@ -144,6 +156,8 @@ def visualize_ranked_results(
                 if rank_idx > topk:
                     break
 
+        csv_data.append(csv_row)
+
         if data_type == 'image':
             imname = osp.basename(osp.splitext(qimg_path_name)[0])
             cv2.imwrite(osp.join(save_dir, imname + '.jpg'), grid_img)
@@ -151,4 +165,10 @@ def visualize_ranked_results(
         if (q_idx+1) % 100 == 0:
             print('- done {}/{}'.format(q_idx + 1, num_q))
 
-    print('Done. Images have been saved to "{}" ...'.format(save_dir))
+    # Write CSV file
+    with open(csv_path, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(csv_headers)
+        writer.writerows(csv_data)
+
+    print('Done. Images and CSV file have been saved to "{}" ...'.format(save_dir))
