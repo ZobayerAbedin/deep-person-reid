@@ -15,15 +15,16 @@ BW = 5 # border width
 GREEN = (0, 255, 0)
 RED = (0, 0, 255)
 
+
 def visualize_ranked_results(
     distmat, dataset, data_type, width=128, height=256, save_dir='', topk=10
 ):
-    """Visualizes ranked results and saves person IDs to a CSV file.
+    """Visualizes ranked results and saves details to a CSV file.
 
     Supports both image-reid and video-reid.
 
     For image-reid, ranks will be plotted in a single figure. For video-reid, ranks will be
-    saved in folders each containing a tracklet. A CSV file is generated with query and gallery person IDs.
+    saved in folders each containing a tracklet. A CSV file is generated with query person ID, image names, and matches.
 
     Args:
         distmat (numpy.ndarray): distance matrix of shape (num_query, num_gallery).
@@ -51,7 +52,7 @@ def visualize_ranked_results(
     # Prepare CSV file
     csv_path = osp.join(save_dir, 'ranked_results.csv')
     csv_data = []
-    csv_headers = ['Query_PID', 'Query_Image'] + [f'Gallery_PID_{i+1}' for i in range(topk)] + [f'Match_{i+1}' for i in range(topk)]
+    csv_headers = ['Query_PID', 'Query_Image'] + [f'Gallery_Image_{i+1}' for i in range(topk)] + [f'Match_{i+1}' for i in range(topk)]
 
     def _cp_img_to(src, dst, rank, prefix, matched=False):
         """
@@ -119,9 +120,10 @@ def visualize_ranked_results(
 
             if not invalid:
                 matched = gpid == qpid
+                gimg_path_name = gimg_path[0] if isinstance(gimg_path, (tuple, list)) else gimg_path
                 # Add to CSV row
                 if rank_idx <= topk:
-                    csv_row[rank_idx + 1] = gpid
+                    csv_row[rank_idx + 1] = osp.basename(gimg_path_name)
                     csv_row[rank_idx + 1 + topk] = str(matched)
                 
                 if data_type == 'image':
